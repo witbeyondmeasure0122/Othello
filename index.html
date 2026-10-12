@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>黑白棋</title>
+<style>
+:root{
+  --B:radial-gradient(circle at 35% 30%,#666,#0b0b0b 72%);
+  --W:radial-gradient(circle at 35% 30%,#fff,#cfc7b2 78%);
+  --edge:#10181b; --accent:#e2b04a;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;
+  background:#182024;color:#e9e5d8;
+  font-family:"Noto Serif TC","Songti TC","PMingLiU","Microsoft JhengHei",serif}
+.app{width:min(100%,540px)}
+h1{margin:0 0 14px;font-size:30px;font-weight:700;letter-spacing:.3em}
+
+/* 主畫面 */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.card{display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 12px;font-size:24px;letter-spacing:.1em;
+  border-radius:14px}
+.mini{width:min(100%,150px);aspect-ratio:1;border:4px solid var(--edge);border-radius:4px;
+  background-color:#2f5d4e;
+  background-image:linear-gradient(rgba(0,0,0,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.35) 1px,transparent 1px)}
+
+/* 棋盤頁 */
+.bar{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;margin-bottom:12px}
+.score{display:flex;align-items:center;gap:10px;padding:6px 12px 6px 8px;border-radius:999px;
+  border:2px solid transparent;font-size:26px;font-variant-numeric:tabular-nums;min-width:92px}
+.score.on{border-color:var(--accent)}
+.dot{width:26px;height:26px;border-radius:50%;flex:none}
+.dot.b{background:var(--B)} .dot.w{background:var(--W)}
+#status{text-align:center;font-size:17px;line-height:1.4;min-height:48px;display:grid;place-items:center}
+.board{display:grid;background:#2f5d4e;container-type:inline-size;
+  border:8px solid var(--edge);border-radius:8px;box-shadow:0 14px 40px rgba(0,0,0,.45);
+  user-select:none;-webkit-user-select:none}
+.cell{position:relative;aspect-ratio:1;border:1px solid rgba(0,0,0,.32)}
+.cell.hint{cursor:pointer}
+.cell.hint:hover{background:rgba(255,255,255,.08)}
+.cell.hint::after{content:"";position:absolute;inset:0;margin:auto;width:20%;height:20%;
+  border-radius:50%;background:rgba(226,176,74,.8);opacity:var(--po,1)}
+.txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  text-align:center;line-height:1.15;white-space:pre-wrap;overflow:hidden;padding:2px;
+  word-break:break-all;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.35);opacity:var(--to,1)}
+.stone{position:absolute;inset:10%;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,.55);opacity:var(--po,1)}
+.stone:not(.b):not(.w){display:none}
+.stone.b{background:var(--B)} .stone.w{background:var(--W)}
+.last .stone::after{content:"";position:absolute;inset:0;margin:auto;width:16%;height:16%;
+  border-radius:50%;background:#d9573b}
+.editing .stone{display:none!important}
+.editing .cell{cursor:pointer}
+.cell.sel{outline:2px solid var(--accent);outline-offset:-3px}
+.drop{animation:drop .25s ease-out}
+.fbw{animation:fbw .45s ease-in-out}
+.fwb{animation:fwb .45s ease-in-out}
+@keyframes drop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:var(--po,1)}}
+@keyframes fbw{0%{background:var(--B);transform:scaleX(1)}49%{background:var(--B)}
+  50%{background:var(--W);transform:scaleX(.06)}100%{background:var(--W);transform:scaleX(1)}}
+@keyframes fwb{0%{background:var(--W);transform:scaleX(1)}49%{background:var(--W)}
+  50%{background:var(--B);transform:scaleX(.06)}100%{background:var(--B);transform:scaleX(1)}}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+button{font:inherit;font-size:15px;color:inherit;background:#243035;border:1px solid #3a4a50;
+  border-radius:8px;padding:9px 16px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:700}
+.danger{background:#c9553d;color:#fff;border-color:#c9553d;font-weight:700}
+.panel{margin-top:16px;padding:14px;border:1px solid #3a4a50;border-radius:10px;display:grid;gap:12px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.row>label{min-width:11em;font-size:15px}
+.row .val{min-width:3em;font-size:14px;font-variant-numeric:tabular-nums;opacity:.85}
+input[type=color]{width:44px;height:32px;padding:0;border:1px solid #3a4a50;border-radius:6px;background:none;cursor:pointer}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
+textarea{width:100%;font:inherit;font-size:16px;color:inherit;background:#101a1d;border:1px solid #3a4a50;
+  border-radius:8px;padding:8px 10px;resize:vertical}
+.hintline{font-size:14px;opacity:.8;margin:0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:grid;place-items:center;padding:16px;z-index:10}
+.box{background:#1f2a2e;border:1px solid #3a4a50;border-radius:12px;padding:20px;max-width:430px;width:100%;display:grid;gap:12px}
+.box h2{margin:0;font-size:18px}
+.box p{margin:0;font-size:15px;line-height:1.7}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 主畫面 -->
+  <section id="home">
+    <h1>黑白棋</h1>
+    <p class="hintline">選擇棋盤。兩個棋盤的顏色與文字內容各自獨立儲存。</p>
+    <div class="cards">
+      <button class="card" data-n="6"><div class="mini" id="mini6"></div>6 × 6</button>
+      <button class="card" data-n="8"><div class="mini" id="mini8"></div>8 × 8</button>
+    </div>
+  </section>
+
+  <!-- 棋盤頁 -->
+  <section id="game" hidden>
+    <h1 id="title">黑白棋</h1>
+    <div class="bar">
+      <div class="score" id="sb"><span class="dot b"></span><span id="nb">2</span></div>
+      <div id="status"></div>
+      <div class="score" id="sw"><span class="dot w"></span><span id="nw">2</span></div>
+    </div>
+    <div class="board" id="board"></div>
+
+    <div class="ctrl">
+      <button class="primary" id="new">重新開始</button>
+      <button id="undo">悔棋</button>
+      <button id="edit">編輯文字</button>
+      <button id="home-btn">回到主畫面</button>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <label for="bgc">棋盤色</label>
+        <input type="color" id="bgc" value="#2f5d4e">
+      </div>
+      <div class="row">
+        <label for="bga">棋盤透明度</label>
+        <input type="range" id="bga" min="0" max="100" value="100">
+        <span class="val" id="bgav">100%</span>
+      </div>
+      <div class="row">
+        <label for="poa">棋子與落子指示透明度</label>
+        <input type="range" id="poa" min="0" max="100" value="100">
+        <span class="val" id="poav">100%</span>
+      </div>
+      <div class="row">
+        <label for="toa">文字透明度</label>
+        <input type="range" id="toa" min="0" max="100" value="100">
+        <span class="val" id="toav">100%</span>
+      </div>
+    </div>
+
+    <div class="panel" id="editPanel" hidden>
+      <p class="hintline">點選棋盤上的格子，輸入該格要顯示的文字。</p>
+      <div class="row"><strong id="selName">—</strong></div>
+      <textarea id="tx" rows="2" placeholder="這一格的文字（可換行）"></textarea>
+      <div class="row">
+        <label for="sz">字級</label>
+        <input type="range" id="sz" min="8" max="64" value="20">
+        <span class="val" id="szv">20</span>
+      </div>
+      <div class="row">
+        <label for="tc">文字色</label>
+        <input type="color" id="tc" value="#f3eee2">
+      </div>
+      <div class="row">
+        <button id="applySize">字級套用到全部格子</button>
+        <button id="applyColor">顏色套用到全部格子</button>
+      </div>
+      <div class="row">
+        <button id="clearCell">清除此格文字</button>
+        <button id="clearAll">清除全部格子文字</button>
+      </div>
+      <div class="row">
+        <button class="primary" id="save">儲存</button>
+        <button id="cancel">取消</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="mt">
+    <h2 id="mt"></h2>
+    <p id="mm"></p>
+    <div class="row">
+      <button class="danger" id="mok">確認</button>
+      <button id="mno">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const E=0,B=1,W=2;
+const D=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+let N=8;
+
+function flipsAt(b,i,p){
+  if(b[i])return [];
+  const r=Math.floor(i/N),c=i%N,o=3-p,out=[];
+  for(const[dr,dc]of D){
+    let y=r+dr,x=c+dc;const line=[];
+    while(y>=0&&y<N&&x>=0&&x<N&&b[y*N+x]===o){line.push(y*N+x);y+=dr;x+=dc}
+    if(line.length&&y>=0&&y<N&&x>=0&&x<N&&b[y*N+x]===p)out.push(...line);
+  }
+  return out;
+}
+function movesFor(b,p){
+  const m=[];
+  for(let i=0;i<N*N;i++){const f=flipsAt(b,i,p);if(f.length)m.push([i,f])}
+  return m;
+}
+function play(b,i,p,f){const n=b.slice();n[i]=p;for(const j of f)n[j]=p;return n}
+function count(b){let x=0,y=0;for(const v of b){if(v===B)x++;else if(v===W)y++}return[x,y]}
+
+const $=id=>document.getElementById(id);
+const boardEl=$('board'),cells=[];
+
+/* ---------- 設定儲存（每個棋盤各自一份）---------- */
+const DEF={s:20,c:'#f3eee2'};
+const blank=n=>Array.from({length:n},()=>({t:'',s:DEF.s,c:DEF.c}));
+function load(n){
+  const d={c:'#2f5d4e',a:100,po:100,to:100,cells:null};
+  let raw=null;
+  try{raw=JSON.parse(localStorage.getItem('othello-v3-'+n))}catch(e){}
+  if(!raw&&n===8){ // 沿用舊版 8×8 的設定
+    try{const o=JSON.parse(localStorage.getItem('othello-settings-v2'));
+      if(o)raw={c:o.bg&&o.bg.c,a:o.bg&&o.bg.a,cells:o.cells}}catch(e){}
+  }
+  if(raw){
+    if(typeof raw.c==='string'&&/^#[0-9a-f]{6}$/i.test(raw.c))d.c=raw.c;
+    for(const k of['a','po','to'])if(Number.isFinite(raw[k]))d[k]=raw[k];
+    if(Array.isArray(raw.cells)&&raw.cells.length===n*n)d.cells=raw.cells;
+  }
+  if(!d.cells)d.cells=blank(n*n);
+  return d;
+}
+let cfg=null;
+function persist(){try{localStorage.setItem('othello-v3-'+N,JSON.stringify(cfg))}catch(e){}}
+function rgba(c,a){
+  return `rgba(${parseInt(c.slice(1,3),16)},${parseInt(c.slice(3,5),16)},${parseInt(c.slice(5,7),16)},${a/100})`;
+}
+function applyCfg(){
+  boardEl.style.background=rgba(cfg.c,cfg.a);
+  boardEl.style.setProperty('--po',cfg.po/100);
+  boardEl.style.setProperty('--to',cfg.to/100);
+  $('bgc').value=cfg.c;
+  for(const[id,k]of[['bga','a'],['poa','po'],['toa','to']]){
+    $(id).value=cfg[k];$(id+'v').textContent=cfg[k]+'%';
+  }
+}
+$('bgc').oninput=e=>{cfg.c=e.target.value;applyCfg();persist()};
+for(const[id,k]of[['bga','a'],['poa','po'],['toa','to']]){
+  $(id).oninput=e=>{cfg[k]=+e.target.value;applyCfg();persist()};
+}
+
+/* ---------- 遊戲 ---------- */
+let board,turn,hist,last,over,note,editing=false,draft=null,sel=-1;
+const games={}; // 離開主畫面時暫存各棋盤的對局
+
+function reset(){
+  over=false;note='';last=-1;hist=[];
+  board=Array(N*N).fill(E);
+  const m=N/2;
+  board[(m-1)*N+m-1]=W;board[(m-1)*N+m]=B;board[m*N+m-1]=B;board[m*N+m]=W;
+  turn=B;
+  render();
+}
+
+function render(a){
+  const vm=new Set(over||editing?[]:movesFor(board,turn).map(m=>m[0]));
+  const flipped=new Set(a?a.f:[]);
+  cells.forEach((c,i)=>{
+    const v=board[i],s=c.children[1];
+    let cls='stone';
+    if(v){
+      cls+=v===B?' b':' w';
+      if(a&&i===a.i)cls+=' drop';
+      else if(flipped.has(i))cls+=v===W?' fbw':' fwb';
+    }
+    s.className=cls;
+    c.classList.toggle('hint',vm.has(i));
+    c.classList.toggle('last',i===last);
+    c.classList.toggle('sel',editing&&i===sel);
+  });
+  const[nb,nw]=count(board);
+  $('nb').textContent=nb;$('nw').textContent=nw;
+  $('sb').classList.toggle('on',!over&&turn===B);
+  $('sw').classList.toggle('on',!over&&turn===W);
+  let t;
+  if(editing)t='編輯模式';
+  else{
+    if(over)t=(nb>nw?'黑棋獲勝':nw>nb?'白棋獲勝':'平手')+`（${nb} : ${nw}）`;
+    else t=turn===B?'輪到黑棋':'輪到白棋';
+    if(note)t=note+'<br>'+t;
+  }
+  $('status').innerHTML=t;
+  $('undo').disabled=editing||!hist.length;
+  $('new').disabled=editing;
+  $('edit').disabled=editing;
+  $('home-btn').disabled=editing;
+  renderText();
+}
+
+function move(i){
+  const f=flipsAt(board,i,turn);
+  if(!f.length)return;
+  hist.push({board:board.slice(),turn,last});
+  board=play(board,i,turn,f);last=i;note='';
+  const o=3-turn;
+  if(movesFor(board,o).length)turn=o;
+  else if(movesFor(board,turn).length)note=(o===B?'黑':'白')+'棋無處可下，跳過一回合';
+  else over=true;
+  render({i,f});
+}
+
+/* ---------- 格子文字 ---------- */
+function renderText(){
+  const src=editing?draft:cfg.cells;
+  cells.forEach((c,i)=>{
+    const t=c.children[0],d=src[i];
+    t.textContent=d.t;
+    t.style.fontSize=`calc(${d.s} / 540 * 100cqw)`;
+    t.style.color=d.c;
+  });
+}
+const cellName=i=>'ABCDEFGH'[i%N]+(Math.floor(i/N)+1);
+
+function selectCell(i){
+  sel=i;
+  const d=draft[i];
+  $('selName').textContent='目前編輯：'+cellName(i);
+  $('tx').value=d.t;
+  $('sz').value=d.s;$('szv').textContent=d.s;
+  $('tc').value=d.c;
+  render();
+}
+$('tx').oninput=e=>{draft[sel].t=e.target.value;renderText()};
+$('sz').oninput=e=>{draft[sel].s=+e.target.value;$('szv').textContent=e.target.value;renderText()};
+$('tc').oninput=e=>{draft[sel].c=e.target.value;renderText()};
+
+/* 確認視窗 */
+let onOk=null;
+function ask(title,msg,fn){
+  $('mt').textContent=title;$('mm').textContent=msg;onOk=fn;
+  $('modal').hidden=false;$('mno').focus();
+}
+function closeModal(){$('modal').hidden=true;onOk=null}
+$('mok').onclick=()=>{const f=onOk;closeModal();if(f)f()};
+$('mno').onclick=closeModal;
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('modal').hidden)closeModal()});
+const UNDO_NOTE='這只會改動編輯中的內容；按「儲存」之前，隨時可以按「取消」放棄所有修改。';
+
+$('applySize').onclick=()=>{
+  const s=draft[sel].s;
+  ask('字級套用到全部格子？',
+    `全部 ${N*N} 格的字級都會改成 ${s}（包含目前沒有文字的格子），各格原本不同的字級會被覆蓋。文字顏色與內容不受影響。${UNDO_NOTE}`,
+    ()=>{draft.forEach(d=>{d.s=s});renderText()});
+};
+$('applyColor').onclick=()=>{
+  const c=draft[sel].c;
+  ask('顏色套用到全部格子？',
+    `全部 ${N*N} 格的文字顏色都會改成 ${c.toUpperCase()}（包含目前沒有文字的格子），各格原本不同的顏色會被覆蓋。字級與內容不受影響。${UNDO_NOTE}`,
+    ()=>{draft.forEach(d=>{d.c=c});renderText()});
+};
+$('clearCell').onclick=()=>{draft[sel].t='';$('tx').value='';renderText()};
+$('clearAll').onclick=()=>{
+  const k=draft.filter(d=>d.t!=='').length;
+  ask('清除全部格子的文字？',
+    `目前有 ${k} 格有文字，這些文字都會被清除。字級與顏色設定不受影響。${UNDO_NOTE}`,
+    ()=>{draft.forEach(d=>{d.t=''});$('tx').value='';renderText()});
+};
+
+function setEditing(on){
+  editing=on;
+  boardEl.classList.toggle('editing',on);
+  $('editPanel').hidden=!on;
+}
+$('edit').onclick=()=>{
+  draft=cfg.cells.map(d=>({...d}));
+  setEditing(true);
+  selectCell(0);
+};
+$('save').onclick=()=>{
+  cfg.cells=draft;persist();
+  draft=null;sel=-1;setEditing(false);render();
+};
+$('cancel').onclick=()=>{
+  draft=null;sel=-1;setEditing(false);render();
+};
+
+/* ---------- 主畫面 / 進入棋盤 ---------- */
+function drawMinis(){
+  for(const n of[6,8]){
+    const c=load(n),m=$('mini'+n);
+    m.style.backgroundColor=rgba(c.c,c.a);
+    m.style.backgroundSize=`calc(100% / ${n}) calc(100% / ${n})`;
+  }
+}
+function showHome(){
+  $('game').hidden=true;$('home').hidden=false;
+  drawMinis();
+}
+function enter(n){
+  N=n;cfg=load(n);
+  boardEl.innerHTML='';cells.length=0;
+  boardEl.style.gridTemplateColumns=`repeat(${n},1fr)`;
+  for(let i=0;i<n*n;i++){
+    const c=document.createElement('div');
+    c.className='cell';c.dataset.i=i;
+    c.innerHTML='<div class="txt"></div><div class="stone"></div>';
+    boardEl.appendChild(c);cells.push(c);
+  }
+  applyCfg();
+  $('title').textContent=`黑白棋 ${n} × ${n}`;
+  $('home').hidden=true;$('game').hidden=false;
+  const g=games[n];
+  if(g){({board,turn,hist,last,over,note}=g);render()}
+  else reset();
+}
+document.querySelectorAll('.card').forEach(b=>b.onclick=()=>enter(+b.dataset.n));
+$('home-btn').onclick=()=>{
+  games[N]={board,turn,hist,last,over,note};
+  showHome();
+};
+
+/* ---------- 事件 ---------- */
+boardEl.addEventListener('click',e=>{
+  const c=e.target.closest('.cell');
+  if(!c)return;
+  const i=+c.dataset.i;
+  if(editing){selectCell(i);return}
+  if(over)return;
+  move(i);
+});
+$('new').onclick=reset;
+$('undo').onclick=()=>{
+  if(!hist.length)return;
+  const s=hist.pop();board=s.board;turn=s.turn;last=s.last;
+  over=false;note='';render();
+};
+showHome();
+</script>
+</body>
+</html>
